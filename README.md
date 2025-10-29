@@ -1,3 +1,4 @@
+
 # DBA.usp_RebuildIndexesIfBloated
 
 Rebuild only what is bloated. This stored procedure targets leaf-level **rowstore** index partitions whose **avg_page_space_used_in_percent** falls below a threshold. It is partition aware, ONLINE aware, optionally resumable, and logs every decision.
@@ -31,9 +32,9 @@ Rebuild only what is bloated. This stored procedure targets leaf-level **rowstor
 
 ## Compatibility
 
-- **SQL Server**: 2014 to 2022
-- **ONLINE**: Enterprise, Developer, Evaluation
-- **Resumable**: SQL Server 2019+ and ONLINE
+- **SQL Server**: 2014 to 2022  
+- **ONLINE**: Enterprise, Developer, Evaluation  
+- **Resumable**: SQL Server 2019+ and ONLINE  
 - **Compression**: available broadly on newer versions and Enterprise family
 
 The procedure self-detects edition and version, then quietly downgrades features if not supported.
@@ -42,10 +43,10 @@ The procedure self-detects edition and version, then quietly downgrades features
 
 ## Installation
 
-1. Create the `DBA` schema if needed and deploy the procedure in the database of your choice (or master if you prefer central deployment).
+1. Create the `DBA` schema if needed and deploy the procedure in the database of your choice (or Utility database if you prefer central deployment).
 2. First execution will ensure the log table exists in either the **target DB** or a central **Log DB** you specify via `@LogDatabase`.
 
-> Yes, you can deploy once in `master` and call it for any user database. It logs to a Utility or target DB as you prefer.
+> You can deploy once in a Utility and call it for any user database. It logs to a Utility or target DB as you prefer.
 
 ---
 
@@ -75,9 +76,9 @@ The procedure self-detects edition and version, then quietly downgrades features
 
 **Important safeguards**
 
-- `@SampleMode` accepts only `SAMPLED` or `DETAILED` by design
-- Resumable rebuilds are **skipped** for filtered indexes, included LOB columns, or computed/rowversion key columns
-- If ONLINE is unsupported on the edition, ONLINE options are quietly disabled
+- `@SampleMode` accepts only `SAMPLED` or `DETAILED`
+- Resumable rebuilds are skipped for filtered indexes, included LOB columns, or computed/rowversion key columns
+- If ONLINE is unsupported on the edition, ONLINE options are disabled
 
 ---
 
@@ -88,3 +89,120 @@ The procedure self-detects edition and version, then quietly downgrades features
 EXEC DBA.usp_RebuildIndexesIfBloated
     @DatabaseName = N'YourDb',
     @WhatIf       = 1;
+````
+
+### Execute with ONLINE and DOP 4
+
+```sql
+EXEC DBA.usp_RebuildIndexesIfBloated
+    @DatabaseName = N'YourDb',
+    @Online       = 1,
+    @MaxDOP       = 4,
+    @WhatIf       = 0;
+```
+
+### Force ROW compression
+
+```sql
+EXEC DBA.usp_RebuildIndexesIfBloated
+    @DatabaseName             = N'YourDb',
+    @UseCompressionFromSource = 0,
+    @ForceCompression         = N'ROW',
+    @WhatIf                   = 0;
+```
+
+### Low priority wait
+
+```sql
+EXEC DBA.usp_RebuildIndexesIfBloated
+    @DatabaseName             = N'YourDb',
+    @Online                   = 1,
+    @WaitAtLowPriorityMinutes = 5,
+    @AbortAfterWait           = N'BLOCKERS',
+    @WhatIf                   = 0;
+```
+
+### Resumable with MAX_DURATION
+
+```sql
+EXEC DBA.usp_RebuildIndexesIfBloated
+    @DatabaseName       = N'YourDb',
+    @Online             = 1,
+    @Resumable          = 1,
+    @MaxDurationMinutes = 60,
+    @WhatIf             = 0;
+```
+
+---
+
+## Logging
+
+**What is logged**: one row per candidate or action in **[DBA].[IndexBloatRebuildLog]**, including identity (database_name, schema_name, table_name, index_name, index_id, partition_number), metrics (page_count, page_density_pct, fragmentation_pct, avg_row_bytes, record_count, ghost_record_count, forwarded_record_count), allocation unit pages (au_total_pages, au_used_pages, au_data_pages), computed `allocated_unused_pages` = `au_total_pages - au_used_pages`, chosen options (chosen_fill_factor, ONLINE flag, MaxDOP), action and status (DRYRUN or REBUILD; SKIPPED, PENDING, SUCCESS, FAILED), the executed `cmd` text, and full error metadata on failures.
+
+**Trending tip**
+
+```sql
+SELECT TOP (5)
+    run_utc, page_density_pct, avg_row_bytes,
+    ghost_record_count, au_total_pages, au_used_pages,
+    (au_total_pages - au_used_pages) AS allocated_unused_pages
+FROM DBA.IndexBloatRebuildLog
+WHERE database_name = N'YourDb'
+  AND schema_name   = N'dbo'
+  AND table_name    = N'YourTable'
+  AND [action]      = 'DRYRUN'
+ORDER BY run_utc DESC;
+```
+
+---
+
+## Operational notes
+
+* tempdb and version store: ONLINE with `SORT_IN_TEMPDB = ON` pushes work to tempdb and version store
+* Transaction log: rebuilds are fully logged; make sure primary and secondaries keep up
+* MaxDOP: if you need strictly ordered extent allocation, set `@MaxDOP = 1`
+* Sampling: `SAMPLED` is fast; set `@CaptureTrendingSignals = 1` to auto use `DETAILED` for reliable row-size and churn metrics
+
+---
+
+## Known limitations
+
+* Rowstore only; columnstore is out of scope
+* Resumable rebuilds skip filtered indexes, indexes with included LOB, and indexes with computed or rowversion keys
+* Memory optimized tables are skipped
+
+---
+
+## Versioning
+
+* Version: **1.6** (2014 to 2022)
+* Last updated: **2025-10-29**
+
+See the header in the procedure for the exact parameter list and server capability checks.
+
+---
+
+## Contributing
+
+Issues and PRs welcome. Please include:
+
+* Exact SQL Server version and edition
+* Execution parameters used
+* Snippets from `[DBA].[IndexBloatRebuildLog]` for failing cases
+* If relevant, `sys.dm_db_index_physical_stats` output for the affected index
+
+---
+
+## License
+
+MIT. Do good things. Rebuild responsibly.
+
+---
+
+## Credit
+
+Created by **Mike Fuller**.
+
+```
+
+```
