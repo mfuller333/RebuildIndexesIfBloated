@@ -1,0 +1,90 @@
+# DBA.usp_RebuildIndexesIfBloated
+
+Rebuild only what is bloated. This stored procedure targets leaf-level **rowstore** index partitions whose **avg_page_space_used_in_percent** falls below a threshold. It is partition aware, ONLINE aware, optionally resumable, and logs every decision.
+
+> Works on SQL Server 2014 through 2022. Supports Enterprise, Developer, and Evaluation features where applicable. Defaults to a safe **WhatIf** mode.
+
+---
+
+## Why this exists
+
+- Page density tells the truth on SSDs. Logical fragmentation does not pay your storage bill.
+- Touch only the slices that need it. Stop flooring the gas on every index every time.
+- Keep a paper trail. Every candidate and command is logged for audit and trending.
+
+---
+
+## Features
+
+- Targets **rowstore** only (clustered and nonclustered)
+- Leaves tiny partitions alone via `@MinPageCount`
+- Partition aware: rebuilds specific partitions only
+- Optional `ONLINE = ON` with `WAIT_AT_LOW_PRIORITY`
+- Optional **resumable** rebuilds (SQL 2019+, ONLINE only)
+- Compression handled: preserve from source or force `NONE | ROW | PAGE`
+- Fill factor handled: preserve per index or force a global value
+- Full logging to `[DBA].[IndexBloatRebuildLog]` in a target or central log DB
+- Captures trending signals: `avg_row_bytes`, `record_count`, `ghost_record_count`, `forwarded_record_count`, AU pages, and a computed `allocated_unused_pages`
+- Defaults to **WhatIf** so you can review before execution
+
+---
+
+## Compatibility
+
+- **SQL Server**: 2014 to 2022
+- **ONLINE**: Enterprise, Developer, Evaluation
+- **Resumable**: SQL Server 2019+ and ONLINE
+- **Compression**: available broadly on newer versions and Enterprise family
+
+The procedure self-detects edition and version, then quietly downgrades features if not supported.
+
+---
+
+## Installation
+
+1. Create the `DBA` schema if needed and deploy the procedure in the database of your choice (or master if you prefer central deployment).
+2. First execution will ensure the log table exists in either the **target DB** or a central **Log DB** you specify via `@LogDatabase`.
+
+> Yes, you can deploy once in `master` and call it for any user database. It logs to a Utility or target DB as you prefer.
+
+---
+
+## Parameters
+
+| Parameter | Type | Default | Notes |
+|---|---|---:|---|
+| `@DatabaseName` | SYSNAME | **required** | Target database to analyze and rebuild |
+| `@MinPageDensityPct` | DECIMAL(5,2) | 70.0 | Rebuild when leaf partition density is below this percent |
+| `@MinPageCount` | INT | 1000 | Skip partitions smaller than this page count |
+| `@UseExistingFillFactor` | BIT | 1 | Keep index fill factor as is |
+| `@FillFactor` | TINYINT | NULL | Used only when `@UseExistingFillFactor = 0` |
+| `@Online` | BIT | 1 | ONLINE when supported by edition |
+| `@MaxDOP` | INT | NULL | If null, use server default |
+| `@SortInTempdb` | BIT | 1 | Sort in tempdb unless resumable requires OFF |
+| `@UseCompressionFromSource` | BIT | 1 | Keep existing DATA_COMPRESSION |
+| `@ForceCompression` | NVARCHAR(20) | NULL | `NONE` `ROW` or `PAGE` when not preserving |
+| `@SampleMode` | VARCHAR(16) | `SAMPLED` | `SAMPLED` or `DETAILED` |
+| `@CaptureTrendingSignals` | BIT | 0 | If 1 and `SAMPLED`, auto upshift to `DETAILED` for reliable metrics |
+| `@LogDatabase` | SYSNAME | NULL | If set, logs to this DB instead of target DB |
+| `@WaitAtLowPriorityMinutes` | INT | NULL | With ONLINE, enables `WAIT_AT_LOW_PRIORITY` |
+| `@AbortAfterWait` | NVARCHAR(20) | NULL | `NONE` `SELF` or `BLOCKERS` with low-priority waits |
+| `@Resumable` | BIT | 0 | Resumable rebuilds (SQL 2019+, ONLINE required) |
+| `@MaxDurationMinutes` | INT | NULL | Resumable `MAX_DURATION` |
+| `@DelayMsBetweenCommands` | INT | NULL | Optional wait between commands |
+| `@WhatIf` | BIT | 1 | Dry run by default |
+
+**Important safeguards**
+
+- `@SampleMode` accepts only `SAMPLED` or `DETAILED` by design
+- Resumable rebuilds are **skipped** for filtered indexes, included LOB columns, or computed/rowversion key columns
+- If ONLINE is unsupported on the edition, ONLINE options are quietly disabled
+
+---
+
+## Quick start
+
+### Dry run on one database
+```sql
+EXEC DBA.usp_RebuildIndexesIfBloated
+    @DatabaseName = N'YourDb',
+    @WhatIf       = 1;
