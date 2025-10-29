@@ -43,8 +43,8 @@ GO
 /******              and computed allocated_unused_pages for trending.                                      ******/
 /****** Created by: Mike Fuller                                                                             ******/
 /****** Date Updated: 10/29/2025                                                                            ******/
-/****** Version:     1.6 (2014–2022)                                                                        ******/
-/******                                                                                          ¯\_(?)_/¯ ******/
+/****** Version:     1.6 (2014-2022)                                                                        ******/
+/******                                                                                          Â¯\_(ãƒ„)_/Â¯ ******/
 /*****************************************************************************************************************/
 ALTER PROCEDURE [DBA].[usp_RebuildIndexesIfBloated]
       @Help                       BIT          = 0,
@@ -106,7 +106,7 @@ BEGIN
         ) d(param_name, sql_type, default_value, description, example)
         ORDER BY param_name;
 
-        -- Effective behavior on this server (accurate for 2014–2022)
+        -- Effective behavior on this server (accurate for 2014ï¿½2022)
         SELECT
             server_version_major = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128)),4) AS INT),
             server_version_build = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128)),2) AS INT), 
@@ -164,7 +164,7 @@ BEGIN
         RETURN;
     END
 
-    -- Server/Edition capability detection (2014–2022 safe)
+    -- Server/Edition capability detection (2014ï¿½2022 safe)
     DECLARE @verMajor int          = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128)),4) AS int);
     DECLARE @verBuild int          = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128)),2) AS int); -- build (e.g., 4000 = 2016 SP1)
     DECLARE @edition  nvarchar(128)= CAST(SERVERPROPERTY('Edition') AS nvarchar(128));
