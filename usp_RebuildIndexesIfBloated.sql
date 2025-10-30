@@ -3,7 +3,7 @@ GO
 SET QUOTED_IDENTIFIER ON;
 GO
 
-IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = N'DBA')
+IF SCHEMA_ID(N'DBA') IS NULL
     EXEC('CREATE SCHEMA DBA AUTHORIZATION dbo');
 GO
 
@@ -167,7 +167,7 @@ BEGIN
     -- Server/Edition capability detection (2014�2022 safe)
     DECLARE @verMajor int          = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128)),4) AS int);
     DECLARE @verBuild int          = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128)),2) AS int); -- build (e.g., 4000 = 2016 SP1)
-    DECLARE @edition  nvarchar(128)= CAST(SERVERPROPERTY('Edition') AS nvarchar(128));
+    DECLARE @edition  nvarchar(128)= CAST(SERVERPROPERTY('Edition') AS nvarchar(128)) COLLATE DATABASE_DEFAULT;
 
     DECLARE @isEntDevEval bit = CASE WHEN @edition LIKE '%Enterprise%' OR @edition LIKE '%Developer%' OR @edition LIKE '%Evaluation%' THEN 1 ELSE 0 END;
     DECLARE @supportsOnline bit = @isEntDevEval; -- on-prem editions
@@ -185,19 +185,19 @@ BEGIN
         RETURN;
     END;
 
-    IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = @DatabaseName)
+    IF DB_ID(@DatabaseName) IS NULL
     BEGIN
         RAISERROR('Database "%s" not found.',16,1,@DatabaseName);
         RETURN;
     END;
 
-    IF EXISTS (SELECT 1 FROM sys.databases WHERE name = @DatabaseName AND state_desc <> 'ONLINE')
+    IF EXISTS (SELECT 1 FROM sys.databases WHERE database_id = DB_ID(@DatabaseName) AND state <> 0)  -- 0 = ONLINE
     BEGIN
         RAISERROR('Database "%s" is not ONLINE.',16,1,@DatabaseName);
         RETURN;
     END;
 
-    IF EXISTS (SELECT 1 FROM sys.databases WHERE name = @DatabaseName AND is_read_only = 1)
+    IF EXISTS (SELECT 1 FROM sys.databases WHERE database_id = DB_ID(@DatabaseName) AND is_read_only = 1)
     BEGIN
         RAISERROR('Database "%s" is READ_ONLY.',16,1,@DatabaseName);
         RETURN;
@@ -229,7 +229,7 @@ BEGIN
         RAISERROR('@DelayMsBetweenCommands must be >= 0.',16,1); RETURN;
     END;
 
-    IF UPPER(ISNULL(@SampleMode,'')) NOT IN ('SAMPLED','DETAILED')
+    IF UPPER(ISNULL(@SampleMode,'')) COLLATE DATABASE_DEFAULT NOT IN (N'SAMPLED' COLLATE DATABASE_DEFAULT,N'DETAILED' COLLATE DATABASE_DEFAULT)
     BEGIN
         RAISERROR('@SampleMode must be SAMPLED or DETAILED.',16,1);
         RETURN;
@@ -240,7 +240,7 @@ BEGIN
         RAISERROR('@WaitAtLowPriorityMinutes must be a positive integer when provided.',16,1); RETURN;
     END;
 
-    IF @WaitAtLowPriorityMinutes IS NOT NULL AND UPPER(ISNULL(@AbortAfterWait,'')) NOT IN ('NONE','SELF','BLOCKERS')
+    IF @WaitAtLowPriorityMinutes IS NOT NULL AND UPPER(ISNULL(@AbortAfterWait,'')) COLLATE DATABASE_DEFAULT NOT IN (N'NONE' COLLATE DATABASE_DEFAULT,N'SELF' COLLATE DATABASE_DEFAULT,N'BLOCKERS' COLLATE DATABASE_DEFAULT)
     BEGIN
         RAISERROR('@AbortAfterWait must be NONE, SELF, or BLOCKERS when @WaitAtLowPriorityMinutes is set.',16,1);
         RETURN;
@@ -286,11 +286,11 @@ BEGIN
     END
 
     DECLARE @LogDb  SYSNAME       = ISNULL(@LogDatabase, @DatabaseName);
-    DECLARE @qLogDb NVARCHAR(258) = QUOTENAME(@LogDb);
+    DECLARE @qLogDb NVARCHAR(258) = QUOTENAME(@LogDb COLLATE DATABASE_DEFAULT);
 
     DECLARE @ddl NVARCHAR(MAX) =
     N'USE ' + @qLogDb + N';
-    IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = N''DBA'')
+    IF SCHEMA_ID(N''DBA'') IS NULL
         EXEC(''CREATE SCHEMA DBA AUTHORIZATION dbo'');
     IF OBJECT_ID(N''[DBA].[IndexBloatRebuildLog]'', N''U'') IS NULL
     BEGIN
@@ -368,7 +368,7 @@ BEGIN
         RETURN;
     END CATCH
 
-    DECLARE @qDb NVARCHAR(258) = QUOTENAME(@DatabaseName);
+    DECLARE @qDb NVARCHAR(258) = QUOTENAME(@DatabaseName COLLATE DATABASE_DEFAULT);
 
     DECLARE @sql NVARCHAR(MAX) =
     N'USE ' + @qDb + N';
@@ -404,10 +404,11 @@ BEGIN
         cmd                 NVARCHAR(MAX) NOT NULL
     );
 
-    DECLARE @mode VARCHAR(16) =
-        CASE UPPER(@pSampleMode)
-            WHEN ''DETAILED'' THEN ''DETAILED''
-            ELSE ''SAMPLED''
+    DECLARE @mode VARCHAR(16);
+    SET @mode =
+        CASE WHEN UPPER(@pSampleMode COLLATE DATABASE_DEFAULT) = N''DETAILED'' COLLATE DATABASE_DEFAULT
+             THEN N''DETAILED''
+             ELSE N''SAMPLED''
         END;
 
     -- Build candidate list 
@@ -481,14 +482,14 @@ BEGIN
                     N'', ONLINE = ON'' +
                     CASE WHEN @pWaitAtLowPriorityMinutes IS NOT NULL
                          THEN N'' (WAIT_AT_LOW_PRIORITY (MAX_DURATION = '' 
-                              + CONVERT(VARCHAR(4), @pWaitAtLowPriorityMinutes) + N'' MINUTES, ABORT_AFTER_WAIT = '' + @pAbortAfterWait + N''))''
+                              + CONVERT(VARCHAR(4), @pWaitAtLowPriorityMinutes) + N'' MINUTES, ABORT_AFTER_WAIT = '' + (@pAbortAfterWait COLLATE DATABASE_DEFAULT) + N''))''
                          ELSE N'''' END
                 ELSE N'''' 
             END +
             CASE WHEN @pMaxDOP IS NOT NULL THEN N'', MAXDOP = '' + CONVERT(VARCHAR(5), @pMaxDOP) ELSE N'''' END +
             CASE 
                 WHEN @pIncludeDataCompressionOption = 1 
-                     THEN N'', DATA_COMPRESSION = '' + CASE WHEN @pUseCompressionFromSource = 1 THEN p.data_compression_desc ELSE @pForceCompression END
+                     THEN N'', DATA_COMPRESSION = '' + CASE WHEN @pUseCompressionFromSource = 1 THEN p.data_compression_desc COLLATE DATABASE_DEFAULT ELSE (@pForceCompression COLLATE DATABASE_DEFAULT) END
                 ELSE N'''' 
             END +
             CASE WHEN @pOnline = 1 AND @pResumable = 1 AND rs.resumable_supported = 1 THEN N'', RESUMABLE = ON'' ELSE N'''' END +
@@ -687,9 +688,9 @@ BEGIN
     BEGIN
         SELECT
             l.log_id,
-            l.schema_name,
-            l.table_name,
-            l.index_name,
+            l.schema_name      COLLATE DATABASE_DEFAULT AS schema_name,
+            l.table_name       COLLATE DATABASE_DEFAULT AS table_name,
+            l.index_name       COLLATE DATABASE_DEFAULT AS index_name,
             l.partition_number,
             l.page_density_pct,
             l.page_count,
@@ -722,9 +723,16 @@ BEGIN
     );
 
     INSERT #exec (log_id, cmd, schema_name, table_name, index_name, partition_number, page_count)
-    SELECT t.log_id, t.cmd, l.schema_name, l.table_name, l.index_name, l.partition_number, l.page_count
+    SELECT t.log_id,
+           t.cmd,
+           l.schema_name COLLATE DATABASE_DEFAULT,
+           l.table_name  COLLATE DATABASE_DEFAULT,
+           l.index_name  COLLATE DATABASE_DEFAULT,
+           l.partition_number,
+           l.page_count
     FROM #todo AS t
-    JOIN ' + @qLogDb + N'.[DBA].[IndexBloatRebuildLog] AS l ON l.log_id = t.log_id
+    JOIN ' + @qLogDb + N'.[DBA].[IndexBloatRebuildLog] AS l
+      ON l.log_id = t.log_id
     ORDER BY l.page_density_pct ASC, l.page_count DESC;
 
     DECLARE @i INT = 1, @imax INT = (SELECT COUNT(*) FROM #exec);
@@ -804,16 +812,20 @@ BEGIN
     SELECT 
         l.[action],
         l.[status],
-        l.schema_name + N''.'' + l.table_name AS [object_name],
-        l.index_name,
+        (l.schema_name COLLATE DATABASE_DEFAULT + N''.'' + l.table_name COLLATE DATABASE_DEFAULT) AS [object_name],
+        l.index_name COLLATE DATABASE_DEFAULT AS index_name,
         COUNT(*) AS partitions_affected,
         SUM(l.page_count) AS total_pages,
         MIN(l.page_density_pct) AS min_density,
         AVG(l.page_density_pct) AS avg_density
     FROM ' + @qLogDb + N'.[DBA].[IndexBloatRebuildLog] AS l
     WHERE l.log_id IN (SELECT log_id FROM #todo)
-    GROUP BY l.[action], l.[status], l.schema_name + N''.'' + l.table_name, l.index_name
-    ORDER BY total_pages DESC, object_name, index_name;
+    GROUP BY 
+        l.[action],
+        l.[status],
+        (l.schema_name COLLATE DATABASE_DEFAULT + N''.'' + l.table_name COLLATE DATABASE_DEFAULT),
+        l.index_name COLLATE DATABASE_DEFAULT
+    ORDER BY total_pages DESC, [object_name], index_name;
     ';
 
     EXEC sys.sp_executesql
