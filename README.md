@@ -175,8 +175,8 @@ ORDER BY run_utc DESC;
 
 ## Versioning
 
-* Version: **1.6** (2014 to 2022)
-* Last updated: **2025-10-29**
+* Version: **1.71** (2014 to 2022)
+* Last updated: **2025-10-30**
 
 See the header in the procedure for the exact parameter list and server capability checks.
 
