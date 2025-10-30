@@ -106,7 +106,7 @@ BEGIN
         ) d(param_name, sql_type, default_value, description, example)
         ORDER BY param_name;
 
-        -- Effective behavior on this server (accurate for 2014�2022)
+        -- Effective behavior on this server 
         SELECT
             server_version_major = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128)),4) AS INT),
             server_version_build = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128)),2) AS INT), 
@@ -164,7 +164,7 @@ BEGIN
         RETURN;
     END
 
-    -- Server/Edition capability detection (2014�2022 safe)
+    -- Server/Edition capability detection 
     DECLARE @verMajor int          = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128)),4) AS int);
     DECLARE @verBuild int          = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128)),2) AS int); -- build (e.g., 4000 = 2016 SP1)
     DECLARE @edition  nvarchar(128)= CAST(SERVERPROPERTY('Edition') AS nvarchar(128)) COLLATE DATABASE_DEFAULT;
