@@ -43,7 +43,7 @@ GO
 /******              and computed allocated_unused_pages for trending.                                      ******/
 /****** Created by: Mike Fuller                                                                             ******/
 /****** Date Updated: 10/29/2025                                                                            ******/
-/****** Version:     1.6 (2014-2022)                                                                        ******/
+/****** Version:     1.7 (2014-2022)                                                                        ******/
 /******                                                                                          ¯\_(ツ)_/¯ ******/
 /*****************************************************************************************************************/
 ALTER PROCEDURE [DBA].[usp_RebuildIndexesIfBloated]
