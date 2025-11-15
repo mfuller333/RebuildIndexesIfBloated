@@ -175,9 +175,9 @@ BEGIN
     DECLARE @supportsResumableRebuild bit = CASE WHEN @verMajor >= 15 AND @supportsOnline = 1 THEN 1 ELSE 0 END; -- SQL 2019+ & ONLINE
 
     -- Effective sample mode with "seatbelt" for trending signals
-    DECLARE @effectiveSampleMode VARCHAR(16) = @SampleMode;
-    IF @CaptureTrendingSignals = 1 AND UPPER(@effectiveSampleMode) = 'SAMPLED'
-        SET @effectiveSampleMode = 'DETAILED';
+    DECLARE @EffectiveSampleMode VARCHAR(16) = @SampleMode;
+    IF @CaptureTrendingSignals = 1 AND UPPER(@EffectiveSampleMode) = 'SAMPLED'
+        SET @EffectiveSampleMode = 'DETAILED';
 
     IF @DatabaseName IS NULL
     BEGIN
@@ -253,9 +253,9 @@ BEGIN
     END;
 
     -- ONLINE / WAIT_AT_LOW_PRIORITY only if ONLINE is supported on this edition
-    DECLARE @includeOnlineOption bit = CASE WHEN @Online = 1 AND @supportsOnline = 1 THEN 1 ELSE 0 END; 
+    DECLARE @IncludeOnlineOption bit = CASE WHEN @Online = 1 AND @supportsOnline = 1 THEN 1 ELSE 0 END; 
 
-    IF @includeOnlineOption = 0
+    IF @IncludeOnlineOption = 0
     BEGIN
         SET @Online = 0; -- be explicit
         SET @WaitAtLowPriorityMinutes = NULL;
@@ -270,8 +270,8 @@ BEGIN
     END
 
     -- Compression on unsupported editions: never emit the option; also skip compressed partitions later
-    DECLARE @includeDataCompressionOption bit = CASE WHEN @supportsCompression = 1 THEN 1 ELSE 0 END; 
-    IF @includeDataCompressionOption = 0
+    DECLARE @IncludeDataCompressionOption bit = CASE WHEN @supportsCompression = 1 THEN 1 ELSE 0 END; 
+    IF @IncludeDataCompressionOption = 0
     BEGIN
         SET @UseCompressionFromSource = 0;
         SET @ForceCompression = NULL; -- will omit DATA_COMPRESSION entirely
@@ -867,4 +867,3 @@ BEGIN
           @pIncludeDataCompressionOption = @IncludeDataCompressionOption, 
           @pIncludeOnlineOption          = @IncludeOnlineOption; 
 END
-
