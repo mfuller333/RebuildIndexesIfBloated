@@ -83,7 +83,7 @@ BEGIN
         RETURN;
     END
 
-    -- Validation (exact-case tokens) 
+    -- Validation  
     IF @TargetDatabases IS NULL OR LTRIM(RTRIM(@TargetDatabases)) = N''
     BEGIN RAISERROR('@TargetDatabases is required.',16,1); RETURN; END
 
