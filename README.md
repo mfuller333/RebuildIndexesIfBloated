@@ -1,5 +1,7 @@
 ---
+AdaptiveDBCare — Multi-Database Index & Statistics Optimization Release
 
+This release of AdaptiveDBCare introduces coordinated, cross-database index-rebuild and statistics-update capabilities, enhanced telemetry, safer sampling, richer logging, and improved operator visibility. It elevates AdaptiveDBCare from single-DB routines into a unified, intelligent maintenance engine for large SQL Server estates.
 # DBA.usp_RebuildIndexesIfBloated (v**1.9.1**, 2025‑11‑16)
 
 Rebuild **only** what’s bloated. This procedure finds leaf‑level **rowstore** index partitions whose **avg_page_space_used_in_percent** is below a threshold, then rebuilds just those partitions—optionally **ONLINE**, **RESUMABLE**, respecting (or overriding) **FILLFACTOR** and **DATA_COMPRESSION**—and logs every decision.
