@@ -73,7 +73,7 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    /* ---------- Help ---------- */
+    -- Help 
     IF @Help = 1
     BEGIN
         SELECT
@@ -101,7 +101,7 @@ BEGIN
         ) d(param_name, sql_type, default_value, description, example)
         ORDER BY param_name;
 
-        -- Effective behavior on this server (unchanged from prior)
+        -- Effective behavior on this server 
         SELECT
             server_version_major = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128)),4) AS INT),
             server_version_build = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128)),2) AS INT), 
@@ -137,7 +137,7 @@ BEGIN
         SELECT 'au_data_pages','Row-data pages','Rowstore footprint' UNION ALL
         SELECT 'allocated_unused_pages','total - used','Allocated but unused headroom';
         
-        /* Examples */
+        -- Examples 
         SELECT example_label, example_command FROM
         (
             VALUES
@@ -153,7 +153,7 @@ BEGIN
         RETURN;
     END
 
-    /* ---------- Server/Edition capability detection ---------- */
+    -- Server/Edition capability detection 
     DECLARE @verMajor int          = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128)),4) AS int);
     DECLARE @verBuild int          = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128)),2) AS int);
     DECLARE @edition  nvarchar(128)= CAST(SERVERPROPERTY('Edition') AS nvarchar(128)) COLLATE DATABASE_DEFAULT;
@@ -163,12 +163,12 @@ BEGIN
     DECLARE @supportsCompression bit = CASE WHEN @verMajor > 13 OR (@verMajor = 13 AND @verBuild >= 4000) OR @isEntDevEval = 1 THEN 1 ELSE 0 END; 
     DECLARE @supportsResumableRebuild bit = CASE WHEN @verMajor >= 15 AND @supportsOnline = 1 THEN 1 ELSE 0 END; -- SQL 2019+ & ONLINE
 
-    /* ---------- Effective sample mode with seatbelt ---------- */
+    -- Effective sample mode with seatbelt 
     DECLARE @EffectiveSampleMode VARCHAR(16) = @SampleMode;
     IF @CaptureTrendingSignals = 1 AND UPPER(@EffectiveSampleMode) = 'SAMPLED'
         SET @EffectiveSampleMode = 'DETAILED';
 
-    /* ---------- Non-DB-specific validation ---------- */
+    -- validation 
     IF @TargetDatabases IS NULL OR LTRIM(RTRIM(@TargetDatabases)) = N''
     BEGIN RAISERROR('@TargetDatabases is required.',16,1); RETURN; END
 
@@ -224,7 +224,7 @@ BEGIN
         RAISERROR('Invalid @ForceCompression for rowstore. Use NONE, ROW, or PAGE.',16,1); RETURN;
     END
 
-    /* ---------- Parse targets (CSV + negatives; trim; exclude system & distribution) ---------- */
+    -- Parse targets
     IF OBJECT_ID('tempdb..#includes') IS NOT NULL DROP TABLE #includes;
     IF OBJECT_ID('tempdb..#excludes') IS NOT NULL DROP TABLE #excludes;
     IF OBJECT_ID('tempdb..#targets')  IS NOT NULL DROP TABLE #targets;
@@ -261,7 +261,7 @@ BEGIN
             INSERT #includes(name) VALUES(@tok);
     END
 
-    -- Seed from ALL_USER_DBS when requested
+    -- ALL_USER_DBS
     IF @AllUsers = 1
     BEGIN
         INSERT #targets(db_name)
@@ -295,7 +295,7 @@ BEGIN
         RETURN;
     END
 
-    /* ---------- Iterate per target DB ---------- */
+    --Iterate per target DB 
     DECLARE @db SYSNAME;
     DECLARE cur CURSOR LOCAL FAST_FORWARD FOR SELECT db_name FROM #targets ORDER BY db_name;
     OPEN cur;
@@ -317,7 +317,7 @@ BEGIN
         DECLARE @LogDb SYSNAME       = ISNULL(@LogDatabase, @db);
         DECLARE @qLogDb NVARCHAR(258)= QUOTENAME(@LogDb COLLATE DATABASE_DEFAULT);
 
-        /* Ensure log table exists for this target's chosen log DB */
+        -- Ensure log table exists for this target's chosen log DB
         DECLARE @ddl NVARCHAR(MAX) =
         N'USE ' + @qLogDb + N';
           IF SCHEMA_ID(N''DBA'') IS NULL EXEC(''CREATE SCHEMA DBA AUTHORIZATION dbo'');
