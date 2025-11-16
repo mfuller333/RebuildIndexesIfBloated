@@ -117,41 +117,41 @@ BEGIN
     SET @ddl += N'USE ' + @qLogDb + N';' + CHAR(10);
     SET @ddl += N'IF SCHEMA_ID(N''DBA'') IS NULL EXEC(''CREATE SCHEMA DBA AUTHORIZATION dbo'');' + CHAR(10);
     SET @ddl += N'IF OBJECT_ID(N''[DBA].[UpdateStatsLog]'',''U'') IS NULL
-BEGIN
-    CREATE TABLE [DBA].[UpdateStatsLog]
-    (
-        log_id                 BIGINT IDENTITY(1,1) PRIMARY KEY,
-        run_utc                DATETIME2(3)   NOT NULL CONSTRAINT DF_USL_run DEFAULT (SYSUTCDATETIME()),
-        database_name          SYSNAME        NOT NULL,
-        schema_name            SYSNAME        NOT NULL,
-        table_name             SYSNAME        NOT NULL,
-        stats_name             SYSNAME        NOT NULL,
-        stats_id               INT            NOT NULL,
-        [rows]                 BIGINT         NULL,
-        modification_counter   BIGINT         NULL,
-        change_pct             DECIMAL(9,4)   NULL,
-        last_updated           DATETIME2(3)   NULL,
-        rows_sampled           BIGINT         NULL,
-        sample_mode            VARCHAR(12)    NOT NULL,
-        [action]               VARCHAR(20)    NOT NULL,
-        cmd                    NVARCHAR(MAX)  NOT NULL,
-        [status]               VARCHAR(20)    NOT NULL,
-        error_message          NVARCHAR(4000) NULL,
-        error_number           INT            NULL,
-        error_severity         INT            NULL,
-        error_state            INT            NULL,
-        error_line             INT            NULL,
-        error_proc             NVARCHAR(128)  NULL,
-        run_id                 UNIQUEIDENTIFIER NULL
-    );
-END
-ELSE
-BEGIN
-    IF COL_LENGTH(N''[DBA].[UpdateStatsLog]'', N''run_id'') IS NULL
-        ALTER TABLE [DBA].[UpdateStatsLog] ADD run_id UNIQUEIDENTIFIER NULL;
-END
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N''[DBA].[UpdateStatsLog]'') AND name = N''IX_UpdateStatsLog_run'')
-    CREATE INDEX IX_UpdateStatsLog_run ON [DBA].[UpdateStatsLog](run_id);';
+    BEGIN
+        CREATE TABLE [DBA].[UpdateStatsLog]
+        (
+            log_id                 BIGINT IDENTITY(1,1) PRIMARY KEY,
+            run_utc                DATETIME2(3)   NOT NULL CONSTRAINT DF_USL_run DEFAULT (SYSUTCDATETIME()),
+            database_name          SYSNAME        NOT NULL,
+            schema_name            SYSNAME        NOT NULL,
+            table_name             SYSNAME        NOT NULL,
+            stats_name             SYSNAME        NOT NULL,
+            stats_id               INT            NOT NULL,
+            [rows]                 BIGINT         NULL,
+            modification_counter   BIGINT         NULL,
+            change_pct             DECIMAL(9,4)   NULL,
+            last_updated           DATETIME2(3)   NULL,
+            rows_sampled           BIGINT         NULL,
+            sample_mode            VARCHAR(12)    NOT NULL,
+            [action]               VARCHAR(20)    NOT NULL,
+            cmd                    NVARCHAR(MAX)  NOT NULL,
+            [status]               VARCHAR(20)    NOT NULL,
+            error_message          NVARCHAR(4000) NULL,
+            error_number           INT            NULL,
+            error_severity         INT            NULL,
+            error_state            INT            NULL,
+            error_line             INT            NULL,
+            error_proc             NVARCHAR(128)  NULL,
+            run_id                 UNIQUEIDENTIFIER NULL
+        );
+    END
+    ELSE
+    BEGIN
+        IF COL_LENGTH(N''[DBA].[UpdateStatsLog]'', N''run_id'') IS NULL
+            ALTER TABLE [DBA].[UpdateStatsLog] ADD run_id UNIQUEIDENTIFIER NULL;
+    END
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N''[DBA].[UpdateStatsLog]'') AND name = N''IX_UpdateStatsLog_run'')
+        CREATE INDEX IX_UpdateStatsLog_run ON [DBA].[UpdateStatsLog](run_id);';
 
     BEGIN TRY
         EXEC (@ddl);
