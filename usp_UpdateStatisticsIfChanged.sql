@@ -44,7 +44,7 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    /* ----- Help ----- */
+    --- Help 
     IF @Help = 1
     BEGIN
         SELECT param_name, sql_type, default_value, description, example
@@ -83,7 +83,7 @@ BEGIN
         RETURN;
     END
 
-    /* ----- Validation (exact-case tokens) ----- */
+    -- Validation (exact-case tokens) 
     IF @TargetDatabases IS NULL OR LTRIM(RTRIM(@TargetDatabases)) = N''
     BEGIN RAISERROR('@TargetDatabases is required.',16,1); RETURN; END
 
@@ -107,7 +107,7 @@ BEGIN
        AND ( @ChangeThresholdPercent IS NULL OR @ChangeThresholdPercent < 0 OR @ChangeThresholdPercent > 100 )
     BEGIN RAISERROR('When @ChangeScope is NULL, @ChangeThresholdPercent must be between 0 and 100.',16,1); RETURN; END
 
-    /* ----- Resolve log DB & ensure table exists ----- */
+    -- Resolve log DB & ensure table exists 
     DECLARE @HomeDb SYSNAME = DB_NAME();                          -- this utility DB
     DECLARE @LogDb  SYSNAME = ISNULL(@LogDatabase, @HomeDb);
     DECLARE @qLogDb NVARCHAR(258) = QUOTENAME(@LogDb COLLATE DATABASE_DEFAULT);
@@ -161,7 +161,7 @@ BEGIN
         RAISERROR('Failed to prepare [DBA].[UpdateStatsLog] in %s: %s', 16, 1, @LogDb, @Err); RETURN;
     END CATCH
 
-    /* ----- Build target DB list from @TargetDatabases (supports ALL_USER_DBS and -DbName) ----- */
+    -- Build target DB list from @TargetDatabases 
     IF OBJECT_ID('tempdb..#targets') IS NOT NULL DROP TABLE #targets;
     IF OBJECT_ID('tempdb..#include') IS NOT NULL DROP TABLE #include;
     IF OBJECT_ID('tempdb..#exclude') IS NOT NULL DROP TABLE #exclude;
@@ -230,7 +230,7 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM #targets)
     BEGIN RAISERROR('No valid target databases resolved from @TargetDatabases.',16,1); RETURN; END
 
-    /* ----- Execute per target DB ----- */
+    -- Execute per target DB 
     DECLARE @db SYSNAME, @qDb NVARCHAR(258), @sql NVARCHAR(MAX);
     DECLARE @RunId UNIQUEIDENTIFIER = NEWID();  -- tag this run
     DECLARE cur CURSOR LOCAL FAST_FORWARD FOR SELECT db_name FROM #targets ORDER BY db_name;
