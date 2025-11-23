@@ -45,7 +45,7 @@ Rebuild **only** what’s bloated. This procedure finds leaf‑level **rowstore*
 * **MaxDOP**: honor server default when NULL; you can explicitly set `0` (unlimited) or a specific value.
 * **SORT_IN_TEMPDB**: ON by default; automatically **OFF** when RESUMABLE is used (engine limitation).
 * **Full logging** to `[DBA].[IndexBloatRebuildLog]` in a **target DB** or a central log DB.
-* Captures trending signals: `avg_row_bytes`, `record_count`, `ghost_record_count`, `forwarded_record_count`, AU pages (`au_total_pages`, `au_used_pages`, `au_data_pages`), and computed `allocated_unused_pages`.
+* Captures trending signals: `avg_row_bytes`, `record_count`, `ghost_record_count`, `forwarded_record_count-for future heap rebuild options`, AU pages (`au_total_pages`, `au_used_pages`, `au_data_pages`), and computed `allocated_unused_pages`.
 * Defaults to **WhatIf** (dry run).
 
 ---
