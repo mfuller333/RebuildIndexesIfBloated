@@ -113,7 +113,7 @@ BEGIN
             supports_compression = CASE 
                                       WHEN CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128)),4) AS INT) > 13 THEN 1
                                       WHEN CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128)),4) AS INT) = 13
-                                           AND CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128)),2) AS INT) >= 4000 THEN 1
+                                       AND CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128)),2) AS INT) >= 4000 THEN 1
                                       WHEN CAST(SERVERPROPERTY('Edition') AS NVARCHAR(128)) LIKE '%Enterprise%'
                                         OR CAST(SERVERPROPERTY('Edition') AS NVARCHAR(128)) LIKE '%Developer%'
                                         OR CAST(SERVERPROPERTY('Edition') AS NVARCHAR(128)) LIKE '%Evaluation%' THEN 1
@@ -142,20 +142,20 @@ BEGIN
         (
             VALUES
               (N'All user DBs (dry run)', 
-               N'EXEC DBA.usp_RebuildIndexesIfBloated @TargetDatabases = N''ALL_USER_DBS'', @WhatIf = 1;')
-            , (N'All user DBs except DW & SSRS (execute, central log)', 
-               N'EXEC DBA.usp_RebuildIndexesIfBloated @TargetDatabases = N''ALL_USER_DBS,-DW,-ReportServer,-ReportServerTempDB'', @LogDatabase = N''UtilityDb'', @WhatIf = 0;')
-            , (N'Specific list (execute, resumable online)', 
-               N'EXEC DBA.usp_RebuildIndexesIfBloated @TargetDatabases = N''Orders,Inventory,Finance'', @Online=1, @Resumable=1, @MaxDOP=4, @WhatIf = 0;')
-            , (N'Single database via @TargetDatabases', 
+               N'EXEC DBA.usp_RebuildIndexesIfBloated @TargetDatabases = N''ALL_USER_DBS'', @WhatIf = 1;'),
+              (N'All user DBs except DW & SSRS (execute, central log)', 
+               N'EXEC DBA.usp_RebuildIndexesIfBloated @TargetDatabases = N''ALL_USER_DBS,-DW,-ReportServer,-ReportServerTempDB'', @LogDatabase = N''UtilityDb'', @WhatIf = 0;'),
+              (N'Specific list (execute, resumable online)', 
+               N'EXEC DBA.usp_RebuildIndexesIfBloated @TargetDatabases = N''Orders,Inventory,Finance'', @Online=1, @Resumable=1, @MaxDOP=4, @WhatIf = 0;'),
+              (N'Single database via @TargetDatabases', 
                N'EXEC DBA.usp_RebuildIndexesIfBloated @TargetDatabases = N''SalesDb'', @WhatIf = 0;')
         ) X(example_label, example_command);
         RETURN;
     END
 
     -- Server/Edition capability detection 
-    DECLARE @verMajor int          = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128)),4) AS int);
-    DECLARE @verBuild int          = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128)),2) AS int);
+    DECLARE @verMajor int = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128)),4) AS int);
+    DECLARE @verBuild int = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128)),2) AS int);
     DECLARE @edition  nvarchar(128)= CAST(SERVERPROPERTY('Edition') AS nvarchar(128)) COLLATE DATABASE_DEFAULT;
 
     DECLARE @isEntDevEval bit = CASE WHEN @edition LIKE '%Enterprise%' OR @edition LIKE '%Developer%' OR @edition LIKE '%Evaluation%' THEN 1 ELSE 0 END;
@@ -314,9 +314,9 @@ BEGIN
         -- STARTING message for this DB
         RAISERROR(N'===== STARTING database: [%s] =====', 10, 1, @db) WITH NOWAIT;
 
-        DECLARE @qDb   NVARCHAR(258) = QUOTENAME(@db COLLATE DATABASE_DEFAULT);
-        DECLARE @LogDb SYSNAME       = ISNULL(@LogDatabase, @db);
-        DECLARE @qLogDb NVARCHAR(258)= QUOTENAME(@LogDb COLLATE DATABASE_DEFAULT);
+        DECLARE @qDb NVARCHAR(258) = QUOTENAME(@db COLLATE DATABASE_DEFAULT);
+        DECLARE @LogDb SYSNAME = ISNULL(@LogDatabase, @db);
+        DECLARE @qLogDb NVARCHAR(258) = QUOTENAME(@LogDb COLLATE DATABASE_DEFAULT);
 
         -- Ensure log table exists for this target's chosen log DB
         DECLARE @ddl NVARCHAR(MAX) =
@@ -462,52 +462,52 @@ BEGIN
             cmd
 		)
 		SELECT
-				s.name, 
-                t.name, 
-                i.name, 
-                i.index_id,
-				ps.partition_number, 
-                ps.page_count,
-				ps.avg_page_space_used_in_percent, 
-                ps.avg_fragmentation_in_percent,
-				COALESCE(CAST(ps.avg_record_size_in_bytes AS DECIMAL(18,2)), 0),
-				COALESCE(ps.record_count, 0), 
-                COALESCE(ps.ghost_record_count, 0), 
-                COALESCE(ps.forwarded_record_count, 0),
-				COALESCE(SUM(au.total_pages),0), 
-                COALESCE(SUM(au.used_pages),0), 
-                COALESCE(SUM(au.data_pages),0),
-				p.data_compression_desc,
-				CASE WHEN @pUseExistingFillFactor = 1 THEN NULLIF(i.fill_factor, 0) ELSE @pFillFactor END,
-				CASE WHEN psch.data_space_id IS NULL THEN 0 ELSE 1 END,
-				i.has_filter,
-				blockers.has_included_lob,
-				blockers.has_key_blocker,
-				rs.resumable_supported,
-				(
-				N''ALTER INDEX '' + QUOTENAME(i.name) +
-				N'' ON '' + QUOTENAME(s.name) + N''.'' + QUOTENAME(t.name) +
-				CASE WHEN psch.data_space_id IS NULL THEN N'' REBUILD '' ELSE N'' REBUILD PARTITION = '' + CONVERT(VARCHAR(12), ps.partition_number) + N'' '' END +
-				N''WITH (SORT_IN_TEMPDB = '' +
-				CASE WHEN @pOnline = 1 AND @pResumable = 1 AND rs.resumable_supported = 1 THEN N''OFF'' ELSE CASE WHEN @pSortInTempdb = 1 THEN N''ON'' ELSE N''OFF'' END END +
-				CASE WHEN (CASE WHEN @pUseExistingFillFactor = 1 THEN NULLIF(i.fill_factor,0) ELSE @pFillFactor END) IS NOT NULL
-						THEN N'', FILLFACTOR = '' + CONVERT(VARCHAR(4), (CASE WHEN @pUseExistingFillFactor = 1 THEN NULLIF(i.fill_factor,0) ELSE @pFillFactor END))
-						ELSE N'''' END +
-				CASE WHEN @pIncludeOnlineOption = 1 AND @pOnline = 1
-						THEN N'', ONLINE = ON'' + CASE WHEN @pWaitAtLowPriorityMinutes IS NOT NULL
-													THEN N'' (WAIT_AT_LOW_PRIORITY (MAX_DURATION = '' + CONVERT(VARCHAR(4), @pWaitAtLowPriorityMinutes) + N'' MINUTES, ABORT_AFTER_WAIT = '' + (@pAbortAfterWait COLLATE DATABASE_DEFAULT) + N''))''
-													ELSE N'''' END
-						ELSE N'''' END +
-				CASE WHEN @pMaxDOP IS NOT NULL THEN N'', MAXDOP = '' + CONVERT(VARCHAR(5), @pMaxDOP) ELSE N'''' END +
-				CASE WHEN @pIncludeDataCompressionOption = 1 
-						THEN N'', DATA_COMPRESSION = '' + CASE WHEN @pUseCompressionFromSource = 1 THEN p.data_compression_desc COLLATE DATABASE_DEFAULT ELSE (@pForceCompression COLLATE DATABASE_DEFAULT) END
-						ELSE N'''' END +
-				CASE WHEN @pOnline = 1 AND @pResumable = 1 AND rs.resumable_supported = 1 THEN N'', RESUMABLE = ON'' ELSE N'''' END +
-				CASE WHEN @pOnline = 1 AND @pResumable = 1 AND rs.resumable_supported = 1 AND @pMaxDurationMinutes IS NOT NULL
-						THEN N'', MAX_DURATION = '' + CONVERT(VARCHAR(4), @pMaxDurationMinutes) + N'' MINUTES'' ELSE N'''' END +
-				N'')'' +
-				CASE WHEN @pOnline = 1 AND @pResumable = 1 AND rs.resumable_supported = 0 THEN N'' /* downgraded: filtered and/or included LOB and/or computed/rowversion key */'' ELSE N'''' END
-				)
+            s.name, 
+            t.name, 
+            i.name, 
+            i.index_id,
+            ps.partition_number, 
+            ps.page_count,
+            ps.avg_page_space_used_in_percent, 
+            ps.avg_fragmentation_in_percent,
+            COALESCE(CAST(ps.avg_record_size_in_bytes AS DECIMAL(18,2)), 0),
+            COALESCE(ps.record_count, 0), 
+            COALESCE(ps.ghost_record_count, 0), 
+            COALESCE(ps.forwarded_record_count, 0),
+            COALESCE(SUM(au.total_pages),0), 
+            COALESCE(SUM(au.used_pages),0), 
+            COALESCE(SUM(au.data_pages),0),
+            p.data_compression_desc,
+            CASE WHEN @pUseExistingFillFactor = 1 THEN NULLIF(i.fill_factor, 0) ELSE @pFillFactor END,
+            CASE WHEN psch.data_space_id IS NULL THEN 0 ELSE 1 END,
+            i.has_filter,
+            blockers.has_included_lob,
+            blockers.has_key_blocker,
+            rs.resumable_supported,
+            (
+            N''ALTER INDEX '' + QUOTENAME(i.name) +
+            N'' ON '' + QUOTENAME(s.name) + N''.'' + QUOTENAME(t.name) +
+            CASE WHEN psch.data_space_id IS NULL THEN N'' REBUILD '' ELSE N'' REBUILD PARTITION = '' + CONVERT(VARCHAR(12), ps.partition_number) + N'' '' END +
+            N''WITH (SORT_IN_TEMPDB = '' +
+            CASE WHEN @pOnline = 1 AND @pResumable = 1 AND rs.resumable_supported = 1 THEN N''OFF'' ELSE CASE WHEN @pSortInTempdb = 1 THEN N''ON'' ELSE N''OFF'' END END +
+            CASE WHEN (CASE WHEN @pUseExistingFillFactor = 1 THEN NULLIF(i.fill_factor,0) ELSE @pFillFactor END) IS NOT NULL
+                    THEN N'', FILLFACTOR = '' + CONVERT(VARCHAR(4), (CASE WHEN @pUseExistingFillFactor = 1 THEN NULLIF(i.fill_factor,0) ELSE @pFillFactor END))
+                    ELSE N'''' END +
+            CASE WHEN @pIncludeOnlineOption = 1 AND @pOnline = 1
+                    THEN N'', ONLINE = ON'' + CASE WHEN @pWaitAtLowPriorityMinutes IS NOT NULL
+                                                THEN N'' (WAIT_AT_LOW_PRIORITY (MAX_DURATION = '' + CONVERT(VARCHAR(4), @pWaitAtLowPriorityMinutes) + N'' MINUTES, ABORT_AFTER_WAIT = '' + (@pAbortAfterWait COLLATE DATABASE_DEFAULT) + N''))''
+                                                ELSE N'''' END
+                    ELSE N'''' END +
+            CASE WHEN @pMaxDOP IS NOT NULL THEN N'', MAXDOP = '' + CONVERT(VARCHAR(5), @pMaxDOP) ELSE N'''' END +
+            CASE WHEN @pIncludeDataCompressionOption = 1 
+                    THEN N'', DATA_COMPRESSION = '' + CASE WHEN @pUseCompressionFromSource = 1 THEN p.data_compression_desc COLLATE DATABASE_DEFAULT ELSE (@pForceCompression COLLATE DATABASE_DEFAULT) END
+                    ELSE N'''' END +
+            CASE WHEN @pOnline = 1 AND @pResumable = 1 AND rs.resumable_supported = 1 THEN N'', RESUMABLE = ON'' ELSE N'''' END +
+            CASE WHEN @pOnline = 1 AND @pResumable = 1 AND rs.resumable_supported = 1 AND @pMaxDurationMinutes IS NOT NULL
+                    THEN N'', MAX_DURATION = '' + CONVERT(VARCHAR(4), @pMaxDurationMinutes) + N'' MINUTES'' ELSE N'''' END +
+            N'')'' +
+            CASE WHEN @pOnline = 1 AND @pResumable = 1 AND rs.resumable_supported = 0 THEN N'' /* downgraded: filtered and/or included LOB and/or computed/rowversion key */'' ELSE N'''' END
+            )
 		FROM sys.indexes AS i
 		JOIN sys.tables  AS t 
             ON t.object_id = i.object_id
@@ -669,28 +669,28 @@ BEGIN
 		;WITH to_log AS
 		(
 			SELECT
-					DB_NAME() AS database_name,
-					c.schema_name, 
-                    c.table_name, 
-                    c.index_name, 
-                    c.index_id, 
-                    c.partition_number,
-					c.page_count, 
-                    c.page_density_pct, 
-                    c.fragmentation_pct,
-					c.avg_row_bytes, 
-                    c.record_count, 
-                    c.ghost_record_count, 
-                    c.fwd_record_count,
-					c.au_total_pages, 
-                    c.au_used_pages, 
-                    c.au_data_pages,
-					c.chosen_fill_factor,
-					@pOnline AS online_on,
-					@pMaxDOP AS maxdop_used,
-					CASE WHEN @pWhatIf = 1 THEN ''DRYRUN'' ELSE ''REBUILD'' END AS [action],
-					c.cmd AS cmd,
-					CASE WHEN @pWhatIf = 1 THEN ''SKIPPED'' ELSE ''PENDING'' END AS [status]
+                DB_NAME() AS database_name,
+                c.schema_name, 
+                c.table_name, 
+                c.index_name, 
+                c.index_id, 
+                c.partition_number,
+                c.page_count, 
+                c.page_density_pct, 
+                c.fragmentation_pct,
+                c.avg_row_bytes, 
+                c.record_count, 
+                c.ghost_record_count, 
+                c.fwd_record_count,
+                c.au_total_pages, 
+                c.au_used_pages, 
+                c.au_data_pages,
+                c.chosen_fill_factor,
+                @pOnline AS online_on,
+                @pMaxDOP AS maxdop_used,
+                CASE WHEN @pWhatIf = 1 THEN ''DRYRUN'' ELSE ''REBUILD'' END AS [action],
+                c.cmd AS cmd,
+                CASE WHEN @pWhatIf = 1 THEN ''SKIPPED'' ELSE ''PENDING'' END AS [status]
 			FROM #candidates AS c
 		)
 		INSERT INTO ' + @qLogDb + N'.[DBA].[IndexBloatRebuildLog]
