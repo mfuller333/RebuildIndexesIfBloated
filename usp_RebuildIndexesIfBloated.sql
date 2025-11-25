@@ -107,8 +107,8 @@ BEGIN
             server_version_build = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128)),2) AS INT), 
             edition              = CAST(SERVERPROPERTY('Edition') AS NVARCHAR(128)),
             supports_online      = CASE WHEN CAST(SERVERPROPERTY('Edition') AS NVARCHAR(128)) LIKE '%Enterprise%'
-                                           OR CAST(SERVERPROPERTY('Edition') AS NVARCHAR(128)) LIKE '%Developer%'
-                                           OR CAST(SERVERPROPERTY('Edition') AS NVARCHAR(128)) LIKE '%Evaluation%'
+                                          OR CAST(SERVERPROPERTY('Edition') AS NVARCHAR(128)) LIKE '%Developer%'
+                                          OR CAST(SERVERPROPERTY('Edition') AS NVARCHAR(128)) LIKE '%Evaluation%'
                                         THEN 1 ELSE 0 END, 
             supports_compression = CASE 
                                       WHEN CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128)),4) AS INT) > 13 THEN 1
@@ -237,9 +237,9 @@ BEGIN
 
     WHILE LEN(@list) > 0
     BEGIN
-        SET @pos = CHARINDEX(N',', @list);
-        SET @tok = LTRIM(RTRIM(SUBSTRING(@list,1,@pos-1)));
-        SET @list = SUBSTRING(@list, @pos+1, 2147483647);
+        SET @pos = CHARINDEX(N',' , @list);
+        SET @tok = LTRIM(RTRIM(SUBSTRING(@list, 1, @pos - 1)));
+        SET @list = SUBSTRING(@list, @pos + 1, 2147483647);
 
         IF @tok = N'' CONTINUE;
 
@@ -267,18 +267,19 @@ BEGIN
         INSERT #targets(db_name)
         SELECT d.name
         FROM sys.databases AS d
-        WHERE d.name NOT IN (N'master',N'model',N'msdb',N'tempdb',N'distribution')
+        WHERE d.name NOT IN (N'master', N'model', N'msdb', N'tempdb', N'distribution') --skipping replication as well 
           AND d.state = 0
           AND d.is_read_only = 0;
     END
 
     -- Add explicit includes (single DB or CSV)
     INSERT #targets(db_name)
-    SELECT i.name
+    SELECT 
+        i.name
     FROM #includes AS i
     JOIN sys.databases AS d
       ON d.name = i.name COLLATE DATABASE_DEFAULT
-    WHERE d.name NOT IN (N'master',N'model',N'msdb',N'tempdb',N'distribution')
+    WHERE d.name NOT IN (N'master', N'model', N'msdb', N'tempdb', N'distribution')
       AND d.state = 0
       AND d.is_read_only = 0
       AND NOT EXISTS (SELECT 1 FROM #targets WHERE db_name = i.name);
@@ -387,7 +388,7 @@ BEGIN
         END TRY
         BEGIN CATCH
             DECLARE @Err NVARCHAR(255) = ERROR_MESSAGE();
-            RAISERROR('Failed to prepare logging table in %s: %s',16,1,@LogDb,@Err); 
+            RAISERROR('Failed to prepare logging table in %s: %s', 16, 1, @LogDb, @Err); 
             RAISERROR(N'===== COMPLETED database (with errors): [%s] =====', 10, 1, @db) WITH NOWAIT;
             FETCH NEXT FROM cur INTO @db;
             CONTINUE;
@@ -436,20 +437,48 @@ BEGIN
 
 		INSERT INTO #candidates
 		(
-			schema_name, table_name, index_name, index_id, partition_number, page_count, page_density_pct,
-			fragmentation_pct, avg_row_bytes, record_count, ghost_record_count, fwd_record_count,
-			au_total_pages, au_used_pages, au_data_pages, compression_desc, chosen_fill_factor,
-			is_partitioned, is_filtered, has_included_lob, has_key_blocker, resumable_supported, cmd
+			schema_name,  
+            table_name, 
+            index_name, 
+            index_id, 
+            partition_number, 
+            page_count, 
+            page_density_pct,
+			fragmentation_pct, 
+            avg_row_bytes, 
+            record_count, 
+            ghost_record_count, 
+            fwd_record_count,
+			au_total_pages, 
+            au_used_pages, 
+            au_data_pages,
+            compression_desc, 
+            chosen_fill_factor,
+			is_partitioned, 
+            is_filtered, 
+            has_included_lob, 
+            has_key_blocker, 
+            resumable_supported, 
+            cmd
 		)
 		SELECT
-				s.name, t.name, i.name, i.index_id,
-				ps.partition_number, ps.page_count,
-				ps.avg_page_space_used_in_percent, ps.avg_fragmentation_in_percent,
+				s.name, 
+                t.name, 
+                i.name, 
+                i.index_id,
+				ps.partition_number, 
+                ps.page_count,
+				ps.avg_page_space_used_in_percent, 
+                ps.avg_fragmentation_in_percent,
 				COALESCE(CAST(ps.avg_record_size_in_bytes AS DECIMAL(18,2)), 0),
-				COALESCE(ps.record_count, 0), COALESCE(ps.ghost_record_count, 0), COALESCE(ps.forwarded_record_count, 0),
-				COALESCE(SUM(au.total_pages),0), COALESCE(SUM(au.used_pages),0), COALESCE(SUM(au.data_pages),0),
+				COALESCE(ps.record_count, 0), 
+                COALESCE(ps.ghost_record_count, 0), 
+                COALESCE(ps.forwarded_record_count, 0),
+				COALESCE(SUM(au.total_pages),0), 
+                COALESCE(SUM(au.used_pages),0), 
+                COALESCE(SUM(au.data_pages),0),
 				p.data_compression_desc,
-				CASE WHEN @pUseExistingFillFactor = 1 THEN NULLIF(i.fill_factor,0) ELSE @pFillFactor END,
+				CASE WHEN @pUseExistingFillFactor = 1 THEN NULLIF(i.fill_factor, 0) ELSE @pFillFactor END,
 				CASE WHEN psch.data_space_id IS NULL THEN 0 ELSE 1 END,
 				i.has_filter,
 				blockers.has_included_lob,
@@ -480,28 +509,44 @@ BEGIN
 				CASE WHEN @pOnline = 1 AND @pResumable = 1 AND rs.resumable_supported = 0 THEN N'' /* downgraded: filtered and/or included LOB and/or computed/rowversion key */'' ELSE N'''' END
 				)
 		FROM sys.indexes AS i
-		JOIN sys.tables  AS t ON t.object_id = i.object_id
-		JOIN sys.schemas AS s ON s.schema_id = t.schema_id
-		JOIN sys.partitions AS p ON p.object_id = i.object_id AND p.index_id = i.index_id
-		JOIN sys.data_spaces AS ds ON ds.data_space_id = i.data_space_id
-		LEFT JOIN sys.partition_schemes AS psch ON psch.data_space_id = ds.data_space_id
-		JOIN sys.allocation_units AS au ON au.container_id = p.hobt_id AND au.type IN (1,3)
+		JOIN sys.tables  AS t 
+            ON t.object_id = i.object_id
+		JOIN sys.schemas AS s 
+            ON s.schema_id = t.schema_id
+		JOIN sys.partitions AS p 
+            ON p.object_id = i.object_id 
+            AND p.index_id = i.index_id
+		JOIN sys.data_spaces AS ds 
+            ON ds.data_space_id = i.data_space_id
+		LEFT JOIN sys.partition_schemes AS psch 
+            ON psch.data_space_id = ds.data_space_id
+		JOIN sys.allocation_units AS au 
+            ON au.container_id = p.hobt_id 
+            AND au.type IN (1, 3)
 		CROSS APPLY
 		(
 			SELECT
 				has_included_lob = CASE WHEN EXISTS
 				(
-					SELECT 1 FROM sys.index_columns ic
-					JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
-					WHERE ic.object_id = i.object_id AND ic.index_id = i.index_id
+					SELECT 1 
+                    FROM sys.index_columns ic
+					JOIN sys.columns c 
+                        ON c.object_id = ic.object_id 
+                        AND c.column_id = ic.column_id
+					WHERE ic.object_id = i.object_id 
+                        AND ic.index_id = i.index_id
 						AND ic.is_included_column = 1
 						AND (c.max_length = -1 OR c.system_type_id IN (34,35,99,241))
 				) THEN 1 ELSE 0 END,
 				has_key_blocker = CASE WHEN EXISTS
 				(
-					SELECT 1 FROM sys.index_columns ic
-					JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
-					WHERE ic.object_id = i.object_id AND ic.index_id = i.index_id
+					SELECT 1 
+                    FROM sys.index_columns ic
+					JOIN sys.columns c 
+                        ON c.object_id = ic.object_id 
+                        AND c.column_id = ic.column_id
+					WHERE ic.object_id = i.object_id 
+                        AND ic.index_id = i.index_id
 						AND ic.key_ordinal > 0 AND (c.is_computed = 1 OR c.system_type_id = 189)
 				) THEN 1 ELSE 0 END
 		) AS blockers
@@ -522,11 +567,25 @@ BEGIN
 			AND t.is_memory_optimized = 0
 			AND (@pIncludeDataCompressionOption = 1 OR p.data_compression = 0)
 		GROUP BY
-			s.name, t.name, i.name, i.index_id, ps.partition_number, ps.page_count,
-			ps.avg_page_space_used_in_percent, ps.avg_fragmentation_in_percent,
-			ps.avg_record_size_in_bytes, ps.record_count, ps.ghost_record_count, ps.forwarded_record_count,
-			p.data_compression_desc, i.fill_factor, psch.data_space_id, i.has_filter,
-			blockers.has_included_lob, blockers.has_key_blocker, rs.resumable_supported
+			s.name, 
+            t.name, 
+            i.name, 
+            i.index_id, 
+            ps.partition_number, 
+            ps.page_count,
+			ps.avg_page_space_used_in_percent, 
+            ps.avg_fragmentation_in_percent,
+			ps.avg_record_size_in_bytes, 
+            ps.record_count, 
+            ps.ghost_record_count, 
+            ps.forwarded_record_count,
+			p.data_compression_desc, 
+            i.fill_factor, 
+            psch.data_space_id, 
+            i.has_filter,
+			blockers.has_included_lob, 
+            blockers.has_key_blocker, 
+            rs.resumable_supported
 		OPTION (RECOMPILE);
 
 		-- Progress: summarize & print per-table
@@ -540,17 +599,19 @@ BEGIN
 		BEGIN
 			IF OBJECT_ID(''tempdb..#scan_out'') IS NOT NULL DROP TABLE #scan_out;
 			SELECT 
-				database_name        = DB_NAME(),
+				database_name = DB_NAME(),
 				schema_name,
 				table_name,
 				candidate_partitions = COUNT(*),
-				min_density_pct      = MIN(page_density_pct),
-				avg_density_pct      = CAST(AVG(page_density_pct) AS DECIMAL(6,2)),
-				max_pages            = MAX(page_count),
-				total_pages          = SUM(page_count)
+				min_density_pct = MIN(page_density_pct),
+				avg_density_pct = CAST(AVG(page_density_pct) AS DECIMAL(6,2)),
+				max_pages = MAX(page_count),
+				total_pages = SUM(page_count)
 			INTO #scan_out
 			FROM #candidates
-			GROUP BY schema_name, table_name;
+			GROUP BY 
+                schema_name, 
+                table_name;
 
 			DECLARE @tbl_count INT = (SELECT COUNT(*) FROM #scan_out);
 			SET @msg = N''Found '' + CONVERT(NVARCHAR(20), @cand_count)
@@ -561,17 +622,24 @@ BEGIN
 			-- Per-table live updates (reuse @msg — do NOT redeclare)
 			DECLARE @s SYSNAME, @t SYSNAME, @minD DECIMAL(6,2), @totP BIGINT, @parts INT;
 			DECLARE c_tbl CURSOR LOCAL FAST_FORWARD FOR
-				SELECT schema_name, table_name, min_density_pct, total_pages, candidate_partitions
+				SELECT 
+                    schema_name, 
+                    table_name, 
+                    min_density_pct, 
+                    total_pages, 
+                    candidate_partitions
 				FROM #scan_out
-				ORDER BY min_density_pct ASC, total_pages DESC;
+				ORDER BY 
+                    min_density_pct ASC, 
+                    total_pages DESC;
 			OPEN c_tbl;
 			FETCH NEXT FROM c_tbl INTO @s, @t, @minD, @totP, @parts;
 			WHILE @@FETCH_STATUS = 0
 			BEGIN
 				SET @msg = N''  -> Candidate: '' + QUOTENAME(@s) + N''.'' + QUOTENAME(@t)
-						+ N'' | min_density='' + CONVERT(NVARCHAR(32), CONVERT(DECIMAL(6,2), @minD)) + N''%%''
-						+ N'' | total_pages='' + CONVERT(NVARCHAR(32), @totP)
-						+ N'' | partitions='' + CONVERT(NVARCHAR(32), @parts);
+						 + N'' | min_density='' + CONVERT(NVARCHAR(32), CONVERT(DECIMAL(6,2), @minD)) + N''%%''
+						 + N'' | total_pages='' + CONVERT(NVARCHAR(32), @totP)
+						 + N'' | partitions='' + CONVERT(NVARCHAR(32), @parts);
 				;RAISERROR(@msg, 10, 1) WITH NOWAIT;
 
 				FETCH NEXT FROM c_tbl INTO @s, @t, @minD, @totP, @parts;
@@ -601,34 +669,79 @@ BEGIN
 		;WITH to_log AS
 		(
 			SELECT
-					DB_NAME()            AS database_name,
-					c.schema_name, c.table_name, c.index_name, c.index_id, c.partition_number,
-					c.page_count, c.page_density_pct, c.fragmentation_pct,
-					c.avg_row_bytes, c.record_count, c.ghost_record_count, c.fwd_record_count,
-					c.au_total_pages, c.au_used_pages, c.au_data_pages,
+					DB_NAME() AS database_name,
+					c.schema_name, 
+                    c.table_name, 
+                    c.index_name, 
+                    c.index_id, 
+                    c.partition_number,
+					c.page_count, 
+                    c.page_density_pct, 
+                    c.fragmentation_pct,
+					c.avg_row_bytes, 
+                    c.record_count, 
+                    c.ghost_record_count, 
+                    c.fwd_record_count,
+					c.au_total_pages, 
+                    c.au_used_pages, 
+                    c.au_data_pages,
 					c.chosen_fill_factor,
-					@pOnline             AS online_on,
-					@pMaxDOP             AS maxdop_used,
+					@pOnline AS online_on,
+					@pMaxDOP AS maxdop_used,
 					CASE WHEN @pWhatIf = 1 THEN ''DRYRUN'' ELSE ''REBUILD'' END AS [action],
-					c.cmd                AS cmd,
+					c.cmd AS cmd,
 					CASE WHEN @pWhatIf = 1 THEN ''SKIPPED'' ELSE ''PENDING'' END AS [status]
 			FROM #candidates AS c
 		)
 		INSERT INTO ' + @qLogDb + N'.[DBA].[IndexBloatRebuildLog]
 		(
-			database_name, schema_name, table_name, index_name, index_id, partition_number,
-			page_count, page_density_pct, fragmentation_pct,
-			avg_row_bytes, record_count, ghost_record_count, forwarded_record_count,
-			au_total_pages, au_used_pages, au_data_pages,
-			chosen_fill_factor, online_on, maxdop_used, [action], cmd, [status]
+			database_name, 
+            schema_name, 
+            table_name, 
+            index_name, 
+            index_id, 
+            partition_number,
+			page_count, 
+            page_density_pct, 
+            fragmentation_pct,
+			avg_row_bytes, 
+            record_count, 
+            ghost_record_count, 
+            forwarded_record_count,
+			au_total_pages, 
+            au_used_pages, 
+            au_data_pages,
+			chosen_fill_factor, 
+            online_on, 
+            maxdop_used, 
+            [action], 
+            cmd, 
+            [status]
 		)
 		OUTPUT inserted.log_id, inserted.cmd INTO #todo(log_id, cmd)
 		SELECT
-			database_name, schema_name, table_name, index_name, index_id, partition_number,
-			page_count, page_density_pct, fragmentation_pct,
-			avg_row_bytes, record_count, ghost_record_count, fwd_record_count,
-			au_total_pages, au_used_pages, au_data_pages,
-			chosen_fill_factor, online_on, maxdop_used, [action], cmd, [status]
+			database_name, 
+            schema_name,
+            table_name, 
+            index_name, 
+            index_id, 
+            partition_number,
+			page_count, 
+            page_density_pct, 
+            fragmentation_pct,
+			avg_row_bytes, 
+            record_count, 
+            ghost_record_count, 
+            fwd_record_count,
+			au_total_pages, 
+            au_used_pages, 
+            au_data_pages,
+			chosen_fill_factor, 
+            online_on, 
+            maxdop_used, 
+            [action], 
+            cmd, 
+            [status]
 		FROM to_log;
 
 		IF NOT EXISTS (SELECT 1 FROM #todo)
@@ -640,9 +753,9 @@ BEGIN
 		BEGIN
 			SELECT
 				l.log_id,
-				l.schema_name      COLLATE DATABASE_DEFAULT AS schema_name,
-				l.table_name       COLLATE DATABASE_DEFAULT AS table_name,
-				l.index_name       COLLATE DATABASE_DEFAULT AS index_name,
+				l.schema_name COLLATE DATABASE_DEFAULT AS schema_name,
+				l.table_name COLLATE DATABASE_DEFAULT AS table_name,
+				l.index_name COLLATE DATABASE_DEFAULT AS index_name,
 				l.partition_number,
 				l.page_density_pct,
 				l.page_count,
@@ -675,15 +788,20 @@ BEGIN
 		);
 
 		INSERT #exec (log_id, cmd, schema_name, table_name, index_name, partition_number, page_count)
-		SELECT t.log_id, t.cmd,
-				l.schema_name COLLATE DATABASE_DEFAULT,
-				l.table_name  COLLATE DATABASE_DEFAULT,
-				l.index_name  COLLATE DATABASE_DEFAULT,
-				l.partition_number, l.page_count
+		SELECT 
+            t.log_id, 
+            t.cmd,
+		    l.schema_name COLLATE DATABASE_DEFAULT,
+			l.table_name COLLATE DATABASE_DEFAULT,
+			l.index_name COLLATE DATABASE_DEFAULT,
+			l.partition_number, 
+            l.page_count
 		FROM #todo AS t
 		JOIN ' + @qLogDb + N'.[DBA].[IndexBloatRebuildLog] AS l
 			ON l.log_id = t.log_id
-		ORDER BY l.page_density_pct ASC, l.page_count DESC;
+		ORDER BY 
+            l.page_density_pct ASC, 
+            l.page_count DESC;
 
 		DECLARE @i INT = 1, @imax INT = (SELECT COUNT(*) FROM #exec);
 		DECLARE @cmd NVARCHAR(MAX), @log_id BIGINT, @schema SYSNAME, @table SYSNAME, @index SYSNAME, @part INT, @pages BIGINT;
@@ -692,9 +810,9 @@ BEGIN
 		IF @pDelayMsBetweenCommands IS NOT NULL
 		BEGIN
 			SET @delay = RIGHT(''00'' + CONVERT(VARCHAR(2), (@pDelayMsBetweenCommands/3600000) % 24),2) + '':'' 
-						+ RIGHT(''00'' + CONVERT(VARCHAR(2), (@pDelayMsBetweenCommands/60000) % 60),2) + '':'' 
-						+ RIGHT(''00'' + CONVERT(VARCHAR(2), (@pDelayMsBetweenCommands/1000) % 60),2) + ''.'' 
-						+ RIGHT(''000'' + CONVERT(VARCHAR(3), @pDelayMsBetweenCommands % 1000),3);
+					   + RIGHT(''00'' + CONVERT(VARCHAR(2), (@pDelayMsBetweenCommands/60000) % 60),2) + '':'' 
+					   + RIGHT(''00'' + CONVERT(VARCHAR(2), (@pDelayMsBetweenCommands/1000) % 60),2) + ''.'' 
+					   + RIGHT(''000'' + CONVERT(VARCHAR(3), @pDelayMsBetweenCommands % 1000),3);
 		END
 
 		WHILE @i <= @imax
@@ -719,13 +837,13 @@ BEGIN
 			END TRY
 			BEGIN CATCH
 				UPDATE ' + @qLogDb + N'.[DBA].[IndexBloatRebuildLog]
-					SET [status]       = ''FAILED'',
-						error_message  = ERROR_MESSAGE(),
-						error_number   = ERROR_NUMBER(),
+					SET [status] = ''FAILED'',
+						error_message = ERROR_MESSAGE(),
+						error_number = ERROR_NUMBER(),
 						error_severity = ERROR_SEVERITY(),
-						error_state    = ERROR_STATE(),
-						error_line     = ERROR_LINE(),
-						error_proc     = ERROR_PROCEDURE()
+						error_state = ERROR_STATE(),
+						error_line = ERROR_LINE(),
+						error_proc = ERROR_PROCEDURE()
 					WHERE log_id = @log_id;
 
 				SET @msg = N''FAILED   '' + QUOTENAME(@schema) + N''.'' + QUOTENAME(@table) + N''.'' + QUOTENAME(@index)
@@ -748,7 +866,11 @@ BEGIN
 			AVG(l.page_density_pct) AS avg_density
 		FROM ' + @qLogDb + N'.[DBA].[IndexBloatRebuildLog] AS l
 		WHERE l.log_id IN (SELECT log_id FROM #todo)
-		GROUP BY l.[action], l.[status], (l.schema_name COLLATE DATABASE_DEFAULT + N''.'' + l.table_name COLLATE DATABASE_DEFAULT), l.index_name COLLATE DATABASE_DEFAULT
+		GROUP BY 
+            l.[action], 
+            l.[status], 
+            (l.schema_name COLLATE DATABASE_DEFAULT + N''.'' + l.table_name COLLATE DATABASE_DEFAULT), 
+            l.index_name COLLATE DATABASE_DEFAULT
 		ORDER BY total_pages DESC, [object_name], index_name;';
 
 
