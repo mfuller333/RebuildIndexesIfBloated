@@ -77,7 +77,11 @@ BEGIN
     IF @Help = 1
     BEGIN
         SELECT
-            param_name, sql_type, default_value, description, example
+            param_name, 
+            sql_type, 
+            default_value, 
+            description, 
+            example
         FROM (VALUES
               (N'@TargetDatabases',          N'NVARCHAR(MAX)',  N'(required)',     N'CSV list or **ALL_USER_DBS** (exact case). Supports exclusions via -DbName. System DBs and distribution are always excluded.', N'@TargetDatabases = N''ALL_USER_DBS,-DW,-ReportServer''')
             , (N'@MinPageDensityPct',        N'DECIMAL(5,2)',   N'70.0',           N'Rebuild when avg page density for a leaf partition is below this percent.',                                   N'65.0')
