@@ -61,8 +61,8 @@ GO
 
 /********************************************************************************************************************/
 /****** Name:        DBA.usp_UpdateStatisticsIfChanged                                                           ****/
-/****** Purpose:     From a single utility DB, update stats in target DB(s) based on change %, or ALL_CHANGES.  ****/
-/******              Allows FULLSCAN, SAMPLED <n>% or default sampling. Logs centrally to DBA.UpdateStatsLog.   ****/
+/****** Purpose:     From a single utility DB, update stats in target DB(s) based on change %, or ALL_CHANGES.   ****/
+/******              Allows FULLSCAN, SAMPLED <n>% or default sampling. Logs centrally to DBA.UpdateStatsLog.    ****/
 /******                                                                                                          ****/
 /****** Input:       @Help                  = 1 prints help and examples; 0 runs normally                        ****/
 /******              @TargetDatabases       = CSV of DBs | 'ALL_USER_DBS' with optional '-DbName' exclusions     ****/
