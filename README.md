@@ -9,7 +9,7 @@ This release of AdaptiveDBCare introduces coordinated, cross-database index-rebu
 ---
 Rebuild **only** what’s bloated. This procedure finds leaf‑level **rowstore** index partitions whose **avg_page_space_used_in_percent** is below a threshold, then rebuilds just those partitions—optionally **ONLINE**, **RESUMABLE**, respecting (or overriding) **FILLFACTOR** and **DATA_COMPRESSION**—and logs every decision.
 
-> **Works on SQL Server 2014–2022.** ONLINE/RESUMABLE features auto‑downgrade based on edition/version (Enterprise/Developer/Evaluation for ONLINE; SQL 2019+ for RESUMABLE). Defaults to safe **WhatIf** mode.
+> **Works on SQL Server 2014–2025.** ONLINE/RESUMABLE features auto‑downgrade based on edition/version (Enterprise/Developer/Evaluation for ONLINE; SQL 2019+ for RESUMABLE). Defaults to safe **WhatIf** mode.
 
 ---
 
@@ -52,7 +52,7 @@ Rebuild **only** what’s bloated. This procedure finds leaf‑level **rowstore*
 
 ## Compatibility
 
-* **SQL Server**: 2014–2022
+* **SQL Server**: 2014–2025
 * **ONLINE**: Enterprise, Developer, Evaluation
 * **RESUMABLE**: SQL Server 2019+ **and** ONLINE
 * **Compression**: auto‑detects support; preserves or overrides accordingly
@@ -262,7 +262,7 @@ Created by **Mike Fuller**.
 
 From a **single** utility DB, update statistics in one or many target databases **only when they’ve changed**—either by a **threshold %** or using `ALL_CHANGES`. Supports `FULLSCAN`, `DEFAULT`, or `SAMPLED <n>%`. All actions are centrally logged.
 
-> **Works on SQL Server 2014–2022.** Designed to be deployed once in a Utility/DBA DB and run against many user DBs. Defaults to **WhatIf**.
+> **Works on SQL Server 2014–2025.** Designed to be deployed once in a Utility/DBA DB and run against many user DBs. Defaults to **WhatIf**.
 
 ---
 

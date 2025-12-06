@@ -92,9 +92,7 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    -------------------------------------------------------------------------
     -- Help
-    -------------------------------------------------------------------------
     IF @Help = 1
     BEGIN
         SELECT param_name, sql_type, default_value, description, example
@@ -129,9 +127,7 @@ BEGIN
         RETURN;
     END;
 
-    -------------------------------------------------------------------------
     -- Validation
-    -------------------------------------------------------------------------
     IF @TargetDatabases IS NULL OR LTRIM(RTRIM(@TargetDatabases)) = N''
     BEGIN
         RAISERROR('@TargetDatabases is required.',16,1);
@@ -172,9 +168,8 @@ BEGIN
         RETURN;
     END;
 
-    -------------------------------------------------------------------------
+
     -- Build target DB list (@TargetDatabases with ALL_USER_DBS and -DbName excludes)
-    -------------------------------------------------------------------------
     IF OBJECT_ID('tempdb..#targets') IS NOT NULL DROP TABLE #targets;
     IF OBJECT_ID('tempdb..#include') IS NOT NULL DROP TABLE #include;
     IF OBJECT_ID('tempdb..#exclude') IS NOT NULL DROP TABLE #exclude;
@@ -275,9 +270,8 @@ BEGIN
         cmd                  NVARCHAR(MAX) NOT NULL
     );
 
-    -------------------------------------------------------------------------
+
     -- Collect candidates from each DB using [db].sys.sp_executesql + INSERT EXEC
-    -------------------------------------------------------------------------
     DECLARE @db SYSNAME;
     DECLARE @DynamicExec NVARCHAR(300);
     DECLARE @SQL         NVARCHAR(MAX);
@@ -305,53 +299,53 @@ BEGIN
 
         SET @SQL = N'SET NOCOUNT ON;
 
-SELECT
-    DB_NAME() AS database_name,
-    s.name    AS schema_name,
-    t.name    AS table_name,
-    st.name   AS stats_name,
-    st.stats_id,
-    sp.[rows],
-    sp.modification_counter,
-    CAST(
-        CASE
-            WHEN sp.[rows] IS NULL THEN NULL
-            WHEN sp.[rows] = 0 THEN CASE WHEN sp.modification_counter > 0 THEN 100.0 ELSE 0.0 END
-            ELSE (100.0 * CONVERT(DECIMAL(18,6), sp.modification_counter)) / NULLIF(CONVERT(DECIMAL(18,6), sp.[rows]),0)
-        END
-        AS DECIMAL(9,4)
-    ) AS change_pct,
-    sp.last_updated,
-    sp.rows_sampled,
-    N''UPDATE STATISTICS '' +
-        QUOTENAME(s.name) + N''.'' + QUOTENAME(t.name) + N'' '' + QUOTENAME(st.name) +
-        CASE 
-            WHEN @pSampleMode = N''FULLSCAN'' THEN N'' WITH FULLSCAN''
-            WHEN @pSampleMode = N''SAMPLED''  THEN N'' WITH SAMPLE '' + CONVERT(NVARCHAR(12), @pSamplePercent) + N'' PERCENT''
-            ELSE N''''
-        END AS cmd
-FROM sys.stats AS st
-JOIN sys.tables AS t
-    ON t.object_id = st.object_id
-JOIN sys.schemas AS s
-    ON s.schema_id = t.schema_id
-CROSS APPLY sys.dm_db_stats_properties(st.object_id, st.stats_id) AS sp
-LEFT JOIN sys.indexes AS i
-    ON i.object_id = st.object_id
-   AND i.index_id  = st.stats_id
-WHERE t.is_ms_shipped = 0
-  AND t.is_memory_optimized = 0
-  AND (i.index_id IS NULL OR i.is_hypothetical = 0)
-  AND sp.modification_counter IS NOT NULL
-  AND (
-        (@pChangeScope = N''ALL_CHANGES'' AND sp.modification_counter > 0)
-        OR
-        (@pChangeScope IS NULL AND (
-              (sp.[rows] = 0 AND sp.modification_counter > 0)
-           OR ((100.0 * CONVERT(DECIMAL(18,6), sp.modification_counter))
-                / NULLIF(CONVERT(DECIMAL(18,6), sp.[rows]),0)) >= @pChangeThresholdPercent)
-        )
-      );';
+        SELECT
+            DB_NAME() AS database_name,
+            s.name    AS schema_name,
+            t.name    AS table_name,
+            st.name   AS stats_name,
+            st.stats_id,
+            sp.[rows],
+            sp.modification_counter,
+            CAST(
+                CASE
+                    WHEN sp.[rows] IS NULL THEN NULL
+                    WHEN sp.[rows] = 0 THEN CASE WHEN sp.modification_counter > 0 THEN 100.0 ELSE 0.0 END
+                    ELSE (100.0 * CONVERT(DECIMAL(18,6), sp.modification_counter)) / NULLIF(CONVERT(DECIMAL(18,6), sp.[rows]),0)
+                END
+                AS DECIMAL(9,4)
+            ) AS change_pct,
+            sp.last_updated,
+            sp.rows_sampled,
+            N''UPDATE STATISTICS '' +
+                QUOTENAME(s.name) + N''.'' + QUOTENAME(t.name) + N'' '' + QUOTENAME(st.name) +
+                CASE 
+                    WHEN @pSampleMode = N''FULLSCAN'' THEN N'' WITH FULLSCAN''
+                    WHEN @pSampleMode = N''SAMPLED''  THEN N'' WITH SAMPLE '' + CONVERT(NVARCHAR(12), @pSamplePercent) + N'' PERCENT''
+                    ELSE N''''
+                END AS cmd
+        FROM sys.stats AS st
+        JOIN sys.tables AS t
+            ON t.object_id = st.object_id
+        JOIN sys.schemas AS s
+            ON s.schema_id = t.schema_id
+        CROSS APPLY sys.dm_db_stats_properties(st.object_id, st.stats_id) AS sp
+        LEFT JOIN sys.indexes AS i
+            ON i.object_id = st.object_id
+           AND i.index_id  = st.stats_id
+        WHERE t.is_ms_shipped = 0
+          AND t.is_memory_optimized = 0
+          AND (i.index_id IS NULL OR i.is_hypothetical = 0)
+          AND sp.modification_counter IS NOT NULL
+          AND (
+                (@pChangeScope = N''ALL_CHANGES'' AND sp.modification_counter > 0)
+                OR
+                (@pChangeScope IS NULL AND (
+                      (sp.[rows] = 0 AND sp.modification_counter > 0)
+                   OR ((100.0 * CONVERT(DECIMAL(18,6), sp.modification_counter))
+                        / NULLIF(CONVERT(DECIMAL(18,6), sp.[rows]),0)) >= @pChangeThresholdPercent)
+                )
+              );';
 
         INSERT INTO #candidates
         (
@@ -389,9 +383,7 @@ WHERE t.is_ms_shipped = 0
         RETURN;
     END;
 
-    -------------------------------------------------------------------------
     -- Log run into DBA.UpdateStatsLog and build #todo for execution
-    -------------------------------------------------------------------------
     IF OBJECT_ID('tempdb..#todo') IS NOT NULL DROP TABLE #todo;
 
     CREATE TABLE #todo
@@ -445,9 +437,7 @@ WHERE t.is_ms_shipped = 0
              + N' statistics entries for run ' + CONVERT(NVARCHAR(36),@RunId) + N'.';
     RAISERROR(@msg,10,1) WITH NOWAIT;
 
-    -------------------------------------------------------------------------
     -- WhatIf: just show a summary and the first few commands
-    -------------------------------------------------------------------------
     IF @WhatIf = 1
     BEGIN
         RAISERROR('WhatIf = 1; no UPDATE STATISTICS will be executed.',10,1) WITH NOWAIT;
@@ -469,9 +459,8 @@ WHERE t.is_ms_shipped = 0
         RETURN;
     END;
 
-    -------------------------------------------------------------------------
+
     -- Execute UPDATE STATISTICS commands with progress output
-    -------------------------------------------------------------------------
     DECLARE
         @log_id_exec     BIGINT,
         @db_exec         SYSNAME,
