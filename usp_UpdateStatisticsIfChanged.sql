@@ -25,7 +25,7 @@ BEGIN
         stats_id             INT            NOT NULL,
         [rows]               BIGINT         NULL,
         modification_counter BIGINT         NULL,
-        change_pct           DECIMAL(9,4)   NULL,
+        change_pct           DECIMAL(19,4)   NULL,
         last_updated         DATETIME2(3)   NULL,
         rows_sampled         BIGINT         NULL,
         sample_mode          VARCHAR(12)    NOT NULL,
@@ -264,7 +264,7 @@ BEGIN
         stats_id             INT           NOT NULL,
         [rows]               BIGINT        NULL,
         modification_counter BIGINT        NULL,
-        change_pct           DECIMAL(9,4)  NULL,
+        change_pct           DECIMAL(19,4)  NULL,
         last_updated         DATETIME2(3)  NULL,
         rows_sampled         BIGINT        NULL,
         cmd                  NVARCHAR(MAX) NOT NULL
@@ -313,7 +313,7 @@ BEGIN
                     WHEN sp.[rows] = 0 THEN CASE WHEN sp.modification_counter > 0 THEN 100.0 ELSE 0.0 END
                     ELSE (100.0 * CONVERT(DECIMAL(18,6), sp.modification_counter)) / NULLIF(CONVERT(DECIMAL(18,6), sp.[rows]),0)
                 END
-                AS DECIMAL(9,4)
+                AS DECIMAL(19,4)
             ) AS change_pct,
             sp.last_updated,
             sp.rows_sampled,
