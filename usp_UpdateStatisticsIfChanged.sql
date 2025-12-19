@@ -76,7 +76,7 @@ GO
 /******              Progress messages printed as stats are analyzed and updated.                                ****/
 /****** Created by:  Mike Fuller                                                                                 ****/
 /****** Date Updated: 12/06/2025                                                                                 ****/
-/****** Version:     2.1 (cross-DB, central log, progress messages)                                              ****/
+/****** Version:     2.1.1 (fixed cross-DB execution)                                                            ****/
 /******                                                                                               ¯\_(ツ)_/¯ ****/
 /********************************************************************************************************************/
 ALTER PROCEDURE [DBA].[usp_UpdateStatisticsIfChanged]
@@ -317,7 +317,7 @@ BEGIN
             ) AS change_pct,
             sp.last_updated,
             sp.rows_sampled,
-            N''USE '' + QUOTENAME(DB_NAME()) + N''; UPDATE STATISTICS '' +
+            N''UPDATE STATISTICS '' +
                 QUOTENAME(s.name) + N''.'' + QUOTENAME(t.name) + N'' '' + QUOTENAME(st.name) +
                 CASE 
                     WHEN @pSampleMode = N''FULLSCAN'' THEN N'' WITH FULLSCAN''
@@ -332,20 +332,20 @@ BEGIN
         CROSS APPLY sys.dm_db_stats_properties(st.object_id, st.stats_id) AS sp
         LEFT JOIN sys.indexes AS i
             ON i.object_id = st.object_id
-        AND i.index_id  = st.stats_id
+           AND i.index_id  = st.stats_id
         WHERE t.is_ms_shipped = 0
-        AND t.is_memory_optimized = 0
-        AND (i.index_id IS NULL OR i.is_hypothetical = 0)
-        AND sp.modification_counter IS NOT NULL
-        AND (
+          AND t.is_memory_optimized = 0
+          AND (i.index_id IS NULL OR i.is_hypothetical = 0)
+          AND sp.modification_counter IS NOT NULL
+          AND (
                 (@pChangeScope = N''ALL_CHANGES'' AND sp.modification_counter > 0)
                 OR
                 (@pChangeScope IS NULL AND (
-                    (sp.[rows] = 0 AND sp.modification_counter > 0)
-                OR ((100.0 * CONVERT(DECIMAL(18,6), sp.modification_counter))
+                      (sp.[rows] = 0 AND sp.modification_counter > 0)
+                   OR ((100.0 * CONVERT(DECIMAL(18,6), sp.modification_counter))
                         / NULLIF(CONVERT(DECIMAL(18,6), sp.[rows]),0)) >= @pChangeThresholdPercent)
                 )
-            );';
+              );';
 
         INSERT INTO #candidates
         (
@@ -462,12 +462,13 @@ BEGIN
 
     -- Execute UPDATE STATISTICS commands with progress output
     DECLARE
-        @log_id_exec BIGINT,
-        @db_exec     SYSNAME,
-        @schema_exec SYSNAME,
-        @table_exec  SYSNAME,
-        @stats_exec  SYSNAME,
-        @cmd_exec    NVARCHAR(MAX);
+        @log_id_exec     BIGINT,
+        @db_exec         SYSNAME,
+        @schema_exec     SYSNAME,
+        @table_exec      SYSNAME,
+        @stats_exec      SYSNAME,
+        @cmd_exec        NVARCHAR(MAX),
+        @DynamicExec_exec NVARCHAR(300);
 
     DECLARE cur_exec CURSOR LOCAL FAST_FORWARD FOR
         SELECT log_id, database_name, schema_name, table_name, stats_name, cmd
@@ -485,8 +486,10 @@ BEGIN
                  + N' in database ' + QUOTENAME(@db_exec) + N'...';
         RAISERROR(@msg,10,1) WITH NOWAIT;
 
+        SET @DynamicExec_exec = QUOTENAME(@db_exec) + N'.sys.sp_executesql';
+
         BEGIN TRY
-            EXEC sys.sp_executesql @cmd_exec;
+            EXEC @DynamicExec_exec @cmd_exec;
 
             UPDATE DBA.UpdateStatsLog
                SET [status] = 'SUCCESS'
